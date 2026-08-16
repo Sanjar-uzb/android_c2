@@ -1,0 +1,5 @@
+# external deps
+requests
+geoip2
+
+# Optional: add `scapy` if you want enhanced packet parsing
