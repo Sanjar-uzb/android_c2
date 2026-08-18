@@ -1,0 +1,3 @@
+# Example IOC domains
+example.com
+api.example.net

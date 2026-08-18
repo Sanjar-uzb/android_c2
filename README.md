@@ -4,9 +4,25 @@ Android C2 Monitor
 Quick tool to monitor network IP addresses seen from an Android device connected via `adb`.
 
 Features
-- Two modes: host `tcpdump` capture (best, requires USB tethering and `sudo`) or
-  adb `/proc/net` polling (works without root on device).
+- Three core modes: host `tcpdump` capture (best, requires USB tethering and `sudo`),
+  adb `/proc/net` polling (works without root on device), and a Frida-based runtime
+  hook mode for in-app connection tracing.
 - Live output of remote IPs with simple heuristics to label likely OUT/IN connections.
+
+Frida mode
+- Add runtime hooks for `connect()` and `getaddrinfo()` from inside a target Android app.
+- Useful when you want to observe C2 attempts without relying only on socket tables.
+- Example:
+
+```bash
+python3 android_c2_monitor.py frida -p com.example.app -t 30 --iocs iocs.txt
+```
+
+Install Frida support:
+
+```bash
+pip install -r requirements.txt
+```
 
 Usage
 1. Ensure `adb` is installed and the device is connected with USB debugging enabled.

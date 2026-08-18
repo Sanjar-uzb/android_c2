@@ -1,5 +1,7 @@
 # external deps
 requests
 geoip2
+frida
+frida-tools
 
 # Optional: add `scapy` if you want enhanced packet parsing

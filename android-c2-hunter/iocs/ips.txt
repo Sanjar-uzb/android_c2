@@ -1,0 +1,4 @@
+# Example IOC IP list
+# Add one IP per line
+8.8.8.8
+1.1.1.1

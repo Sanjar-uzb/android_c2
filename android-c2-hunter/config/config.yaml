@@ -1,0 +1,36 @@
+project:
+  name: android-c2-hunter
+  version: 1.0.0
+  output_dir: cases
+
+network:
+  common_ports:
+    - 53
+    - 80
+    - 123
+    - 443
+    - 853
+    - 8080
+    - 8443
+    - 5228
+    - 5229
+    - 5230
+  suspicious_ports:
+    - 4444
+    - 5555
+    - 1337
+    - 31337
+    - 12345
+    - 6667
+
+scoring:
+  ioc_match: 100
+  public_ip: 1
+  suspicious_port: 5
+  uncommon_port: 2
+  repeated_connection: 2
+  nonstandard_udp: 1
+
+frida:
+  runtime_seconds: 30
+  enabled: true
