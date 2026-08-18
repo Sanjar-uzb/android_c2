@@ -87,21 +87,22 @@ def run_frida_monitor(package_name: str, duration: int, iocs: set[str] | None = 
             return
         host = payload.get("host")
         port = int(payload.get("port", 0) or 0)
-        if host and __import__("ipaddress").ip_address(host):
+        
+        # Classify host as IP or domain
+        remote_ip = None
+        domain = None
+        try:
+            __import__("ipaddress").ip_address(host)
             remote_ip = host
-            domain = None
-        else:
-            remote_ip = host
+        except (ValueError, TypeError):
             domain = host
-        if host and not host.replace('.', '').replace(':', '').isdigit():
             try:
                 info = socket.getaddrinfo(host, port or 0, type=socket.SOCK_STREAM)
                 if info:
                     remote_ip = info[0][4][0]
-                    domain = host
             except Exception:
-                remote_ip = host
-                domain = host
+                remote_ip = "0.0.0.0"
+        
         score, reasons = score_connection({"remote_ip": remote_ip, "remote_port": port, "proto": "tcp"}, 0, iocs or set())
         rec = {
             "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),

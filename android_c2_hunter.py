@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from hunter.adb import adb_devices, adb_shell
+from hunter.detection.beacon import detect_beacons, enrich_events_with_beacon_score
 from hunter.detection.ioc import load_ioc_sets
 from hunter.detection.scoring import score_connection
 from hunter.dynamic.frida import run_frida_monitor
@@ -93,10 +94,18 @@ def cmd_monitor(interval: int, duration: int, package: str, out: str, ioc_path: 
         import time as _time
         _time.sleep(max(1, interval))
 
-    summary = build_summary(events)
-    summary['records'] = events
+    # Enrich events with beacon detection
+    enriched_events = enrich_events_with_beacon_score(events)
+    beacons = detect_beacons(enriched_events, threshold=3)
+    
+    summary = build_summary(enriched_events)
+    summary['records'] = enriched_events
+    summary['beacons'] = beacons
+    summary['beacons_detected'] = len([b for b in beacons if b['is_beacon']])
+    
     _write_json(out_path / 'adb_monitor.json', summary)
-    html = write_html_report({'summary': summary, 'rows': events}, str(out_path / 'report.html'))
+    html = write_html_report({'summary': summary, 'rows': enriched_events}, str(out_path / 'report.html'))
+    print(f"[+] Detected {summary['beacons_detected']} beacon(s)")
     print(f"[+] ADB monitor summary saved: {out_path / 'adb_monitor.json'}")
     print(f"[+] HTML report saved: {html}")
     return 0
