@@ -1,81 +1,194 @@
-Android C2 Monitor
-===================
+# Android C2 Hunter
 
-Quick tool to monitor network IP addresses seen from an Android device connected via `adb`.
+A lightweight Android C2 hunting toolkit for static APK triage, live ADB socket correlation, and Frida-based runtime network tracing.
 
-Features
-- Three core modes: host `tcpdump` capture (best, requires USB tethering and `sudo`),
-  adb `/proc/net` polling (works without root on device), and a Frida-based runtime
-  hook mode for in-app connection tracing.
-- Live output of remote IPs with simple heuristics to label likely OUT/IN connections.
+## Features
 
-Frida mode
-- Add runtime hooks for `connect()` and `getaddrinfo()` from inside a target Android app.
-- Useful when you want to observe C2 attempts without relying only on socket tables.
-- Example:
+- APK static analysis for IPs, URLs, domains, and SHA256 hashes
+- Android live socket analysis via ADB /proc/net
+- Frida runtime hooks for connect(), getaddrinfo(), and SSL calls
+- IOC matching from local files in the iocs folder
+- Risk scoring and summarization
+- JSON, CSV, and HTML report generation
+- Ready-to-run Python CLI structure
 
-```bash
-python3 android_c2_monitor.py frida -p com.example.app -t 30 --iocs iocs.txt
+## Project layout
+
+```text
+android-c2-hunter/
+├── android_c2_hunter.py
+├── requirements.txt
+├── README.md
+├── LICENSE
+├── config/
+│   ├── config.yaml
+│   ├── suspicious_ports.txt
+│   └── common_ports.txt
+├── iocs/
+│   ├── ips.txt
+│   ├── domains.txt
+│   ├── urls.txt
+│   └── hashes.txt
+├── hunter/
+│   ├── __init__.py
+│   ├── adb.py
+│   ├── device.py
+│   ├── processes.py
+│   ├── sockets.py
+│   ├── packages.py
+│   ├── filesystem.py
+│   ├── static/
+│   ├── dynamic/
+│   ├── network/
+│   ├── detection/
+│   ├── evidence/
+│   └── reporting/
+├── frida/
+│   ├── network.js
+│   ├── dns.js
+│   ├── tls.js
+│   ├── java_network.js
+│   └── native_network.js
+├── tests/
+│   ├── test_proc_net.py
+│   ├── test_ioc.py
+│   ├── test_scoring.py
+│   └── test_reporting.py
+├── cases/
+│   └── YYYYMMDD-HHMMSS/
+└──
 ```
 
-Install Frida support:
+## Requirements
 
-```bash
+- Python 3.10+
+- ADB installed and added to PATH
+- Android device connected via USB debugging
+- Optional: Frida installed on the host and device runtime prepared for instrumentation
+- Optional: tcpdump for packet capture mode
+
+## Installation
+
+Windows (PowerShell):
+
+```powershell
+cd C:\path\to\android-c2-hunter
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-Usage
-1. Ensure `adb` is installed and the device is connected with USB debugging enabled.
-2. Recommended: enable USB tethering on the Android device for full packet capture.
-3. Run the script:
+Linux/macOS:
 
 ```bash
-python3 android_c2_monitor.py
+cd /path/to/android-c2-hunter
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Host tcpdump mode (requires sudo and USB tethering):
+## Device preparation
+
+Check ADB:
 
 ```bash
-sudo python3 android_c2_monitor.py
+adb devices
 ```
 
-ADB /proc mode (no root required on device):
+If the device is not listed, enable USB debugging and allow authorization.
+
+For Frida runtime mode, the target app must be installed on the device and the app package name known.
+
+## Run the static analyzer
 
 ```bash
-python3 android_c2_monitor.py --interval 2
+python android_c2_hunter.py static path/to/app.apk --iocs iocs
 ```
 
-Notes & limitations
-- Non-rooted Android devices cannot run `tcpdump` directly without additional setup.
-- The `/proc/net` polling mode uses heuristics and cannot always determine the exact
-  direction or whether a remote IP is a C2 server — it reports remote IPs observed on
-  the device and attempts to guess direction based on ports.
-- For reliable capture, enable USB tethering or run a capture app on the device.
+This extracts:
+- APK SHA256
+- IPs
+- URLs
+- domains
+- IOC matches
 
-Implemented in the script:
-- GeoIP lookup (uses `http://ip-api.com`) with caching; can be disabled with `--no-geo`.
-- Simple C2 classifier that scores IPs by port, repeats, and private/public ranges.
-- Optional CSV output via `--save results.csv` for later analysis.
-
-Example:
+Output is written to the chosen directory, for example:
 
 ```bash
-# Run with GeoIP and save discoveries
-python3 android_c2_monitor.py --interval 2 --save discoveries.csv
-
-# Disable GeoIP lookups (offline/faster)
-python3 android_c2_monitor.py --no-geo
+python android_c2_hunter.py static path/to/app.apk --iocs iocs -o cases/out_static
 ```
 
-Advanced options:
-
-- Use a local MaxMind DB for faster/offline GeoIP: `--mmdb /path/GeoLite2-Country.mmdb` (requires `geoip2` Python package).
-- Provide an IoC file with one IP per line: `--iocs iocs.txt`. Matches will be labeled `ioc`.
-- Save JSON lines output: `--json discoveries.jsonl`.
-- Save full pcap when host tcpdump mode is used: `--pcap capture.pcap` (requires USB tethering and `sudo`).
-
-Example advanced run:
+## Run the live ADB monitor
 
 ```bash
-python3 android_c2_monitor.py --interval 2 --save discoveries.csv --json discoveries.jsonl --mmdb /usr/share/GeoIP/GeoLite2-Country.mmdb --iocs my_iocs.txt
+python android_c2_hunter.py monitor -i 2 -t 30 -p com.example.app -o cases/out_monitor --iocs iocs
 ```
+
+Arguments:
+- -i / --interval: polling interval in seconds
+- -t / --duration: total test duration in seconds
+- -p / --package: package name to filter on (optional)
+- -o / --out: output directory
+- --iocs: IOC directory or file path root
+
+## Run the Frida runtime hook
+
+```bash
+python android_c2_hunter.py frida -p com.example.app -t 30 -o cases/out_frida --iocs iocs
+```
+
+This hooks the app at runtime and logs network-related calls such as:
+- connect()
+- getaddrinfo()
+- SSL/TLS connect flows
+
+It writes a Frida JSONL result and generates a report HTML file in the output folder.
+
+## Run the tcpdump capture mode
+
+```bash
+python android_c2_hunter.py capture -i wlan0 -t 30 -o cases/out_capture
+```
+
+This captures traffic using tcpdump and saves a PCAP to the output directory.
+
+## View generated report artifacts
+
+```bash
+python android_c2_hunter.py report -o cases/out_frida
+```
+
+This checks the output directory for generated artifacts such as:
+- report.html
+- adb_monitor.json
+- frida_summary.json
+
+## Run tests
+
+```bash
+py -3 -m pytest -q
+```
+
+## Example full workflow
+
+```powershell
+cd C:\path\to\android-c2-hunter
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+python android_c2_hunter.py static .\samples\app.apk --iocs .\iocs -o .\cases\out_static
+python android_c2_hunter.py frida -p com.example.app -t 30 -o .\cases\out_frida --iocs .\iocs
+python android_c2_hunter.py monitor -i 2 -t 30 -p com.example.app -o .\cases\out_monitor --iocs .\iocs
+python android_c2_hunter.py report -o .\cases\out_frida
+```
+
+## Notes
+
+- This project is intended for authorized security testing and malware analysis only.
+- Frida runtime monitoring requires a connected physical Android device or emulator.
+- Real-world detection is heuristic and should be combined with manual verification and broader threat intel.
+
+## License
+
+MIT

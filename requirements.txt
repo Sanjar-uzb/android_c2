@@ -1,7 +1,13 @@
-# external deps
-requests
-geoip2
-frida
-frida-tools
+# Core runtime
+requests>=2.31.0
+PyYAML>=6.0.1
 
-# Optional: add `scapy` if you want enhanced packet parsing
+# Optional but useful for geo / enrichment
+geoip2>=4.8.0
+
+# Frida runtime tracing support
+frida>=16.0.0
+frida-tools>=12.0.0
+
+# Test tooling
+pytest>=8.0.0
