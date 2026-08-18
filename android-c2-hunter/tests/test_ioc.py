@@ -1,4 +1,4 @@
-from hunter.detection.ioc import load_ioc_file
+from hunter.detection.ioc import load_ioc_file, ioc_matches
 
 
 def test_load_ioc_file():
@@ -13,3 +13,10 @@ def test_load_ioc_file():
     finally:
         import os
         os.remove(path)
+
+
+def test_ioc_matches_domain_suffix():
+    iocs = {'example.com'}
+    assert ioc_matches('api.example.com', iocs)
+    assert ioc_matches('cdn.example.com', iocs)
+    assert not ioc_matches('notexample.net', iocs)

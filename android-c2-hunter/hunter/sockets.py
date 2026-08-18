@@ -3,6 +3,8 @@ import socket
 from typing import Any, Dict, List
 
 from hunter.adb import adb_shell
+from hunter.packages import uid_packages
+from hunter.processes import pid_inodes
 
 STATES = {
     "01": "ESTABLISHED",
@@ -70,10 +72,31 @@ def parse_proc_net(text: str, proto: str) -> List[Dict[str, Any]]:
     return rows
 
 
-def get_android_sockets() -> List[Dict[str, Any]]:
+def enrich_socket_metadata(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    package_map = uid_packages()
+    pid_map = pid_inodes()
+    enriched: List[Dict[str, Any]] = []
+    for row in rows:
+        inode = str(row.get("inode", ""))
+        uid = str(row.get("uid", ""))
+        pids = sorted(pid_map.get(inode, set()))
+        packages = package_map.get(uid, [])
+        row["pids"] = pids
+        row["packages"] = packages
+        row["package"] = packages[0] if packages else ""
+        row["pid"] = pids[0] if pids else ""
+        enriched.append(row)
+    return enriched
+
+
+def get_android_sockets(package: str = "") -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
     for proto in ("tcp", "tcp6", "udp", "udp6"):
         rc, out, _ = adb_shell(f"cat /proc/net/{proto}", timeout=10)
         if rc == 0:
             result.extend(parse_proc_net(out, proto))
+    result = enrich_socket_metadata(result)
+    if package:
+        package_norm = package.lower()
+        result = [row for row in result if any(pkg.lower() == package_norm for pkg in row.get("packages", [])) or (row.get("package") and row.get("package").lower() == package_norm)]
     return result

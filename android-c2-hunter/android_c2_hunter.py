@@ -60,15 +60,16 @@ def cmd_monitor(interval: int, duration: int, package: str, out: str, ioc_path: 
 
     print(f"[+] Monitoring Android sockets for package={package or 'all'}")
     while True:
-        for row in get_android_sockets():
+        for row in get_android_sockets(package=package):
             ip = row.get('remote_ip')
             if not ip or ip in {'0.0.0.0', '::'}:
                 continue
-            key = (row.get('proto'), row.get('local_ip'), row.get('local_port'), ip, row.get('remote_port'), row.get('state'), row.get('inode'))
+            key = (row.get('proto'), row.get('local_ip'), row.get('local_port'), ip, row.get('remote_port'), row.get('state'), row.get('inode'), row.get('package'))
             if key in seen:
                 continue
             seen.add(key)
-            score, reasons = score_connection(row, 0, iocs)
+            repeat_count = sum(1 for item in events if item.get('remote_ip') == ip and item.get('remote_port') == row.get('remote_port'))
+            score, reasons = score_connection({**row, 'remote_host': row.get('package') or row.get('remote_ip')}, repeat_count, iocs)
             rec = {
                 'timestamp': datetime.now(timezone.utc).isoformat(),
                 'source': 'adb',
@@ -80,6 +81,9 @@ def cmd_monitor(interval: int, duration: int, package: str, out: str, ioc_path: 
                 'ioc': bool(ip in iocs),
                 'uid': row.get('uid'),
                 'inode': row.get('inode'),
+                'package': row.get('package', ''),
+                'pid': row.get('pid', ''),
+                'pids': row.get('pids', []),
             }
             events.append(rec)
             print(json.dumps(rec, ensure_ascii=False))
